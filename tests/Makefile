@@ -6,3 +6,4 @@ test.bin: test.c
 clean:
 	rm -f test
 	rm -f test.bin
+	rm -f test.s

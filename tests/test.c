@@ -1,7 +1,8 @@
 int fact(int n);
 int main() {
     int a = 10;
-    return fact(a);
+    /*return fact(a);*/
+    return a-11;
 }
 
 int fact(int n) {

@@ -45,11 +45,12 @@ void read_file(CPU* cpu, char *filename)
 	fread(buffer, fileLen, 1, file);
 	fclose(file);
     /*printf("%ld %ld\n", fileLen, sizeof(buffer));*/
-    for (int i=0; i<fileLen; i+=2) {
-        if (i%16==0) printf("\n%.8x: ", i);
-        printf("%02x%02x ", *(buffer+i), *(buffer+i+1));
-    }
-    printf("\n");
+    // Print file contents in hex
+    /*for (int i=0; i<fileLen; i+=2) {*/
+        /*if (i%16==0) printf("\n%.8x: ", i);*/
+        /*printf("%02x%02x ", *(buffer+i), *(buffer+i+1));*/
+    /*}*/
+    /*printf("\n");*/
 
     // copy the bin executable to dram
     memcpy(cpu->bus.dram.mem, buffer, fileLen*sizeof(uint8_t));

@@ -38,5 +38,3 @@ all:
 # This command is issued before you recompile the project after making changes
 clean:
 	rm -f $(MAIN_DIR)/$(APP_NAME)
-
-

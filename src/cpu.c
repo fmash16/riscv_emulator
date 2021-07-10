@@ -2,15 +2,22 @@
 #include <stdio.h>
 #include "../includes/cpu.h"
 #include "../includes/opcodes.h"
+#include "../includes/csr.h"
 
-#define ANSI_YELLOW   "\x1b[33m"
+#define ANSI_YELLOW  "\x1b[33m"
+#define ANSI_BLUE    "\x1b[31m"
 #define ANSI_RESET   "\x1b[0m"
 
 
+// print operation for DEBUG
+void print_op(char* s) {
+    printf("%s%s%s", ANSI_BLUE, s, ANSI_RESET);
+}
+
 void cpu_init(CPU *cpu) {
-    cpu->regs[0] = 0x00;           // register x0 hardwired to 0
-    cpu->regs[2] = DRAM_SIZE;   // Set stack pointer
-    cpu->pc = DRAM_BASE;        // Set program counter to the base address
+    cpu->regs[0] = 0x00;                    // register x0 hardwired to 0
+    cpu->regs[2] = DRAM_BASE + DRAM_SIZE;   // Set stack pointer
+    cpu->pc      = DRAM_BASE;               // Set program counter to the base address
 }
 
 uint32_t cpu_fetch(CPU *cpu) {
@@ -26,7 +33,9 @@ void cpu_store(CPU* cpu, uint64_t addr, uint64_t size, uint64_t value) {
     bus_store(&(cpu->bus), addr, size, value);
 }
 
-// Decode instruction
+//=====================================================================================
+// Instruction Decoder Functions
+//=====================================================================================
 
 uint64_t rd(uint32_t inst) {
     return (inst >> 7) & 0x1f;    // rd in bits 11..7
@@ -72,10 +81,19 @@ uint32_t shamt(uint32_t inst) {
     return (uint32_t) (imm_I(inst) & 0x1f); // TODO: 0x1f / 0x3f ?
 }
 
+uint64_t csr(uint32_t inst) {
+    // csr[11:0] = inst[31:20]
+    return ((inst & 0xfff00000) >> 20);
+}
+
+//=====================================================================================
+//   Instruction Execution Functions
+//=====================================================================================
 
 void exec_LUI(CPU* cpu, uint32_t inst) {
     // LUI places upper 20 bits of U-immediate value to rd
     cpu->regs[rd(inst)] = (uint64_t)(int64_t)(int32_t)(inst & 0xfffff000);
+    print_op("lui\n");
 }
 
 void exec_AUIPC(CPU* cpu, uint32_t inst) {
@@ -83,13 +101,15 @@ void exec_AUIPC(CPU* cpu, uint32_t inst) {
     // of the U-immediate
     uint64_t imm = imm_U(inst);
     cpu->regs[rd(inst)] = ((int64_t) cpu->pc + (int64_t) imm) - 4;
+    print_op("auipc\n");
 }
 
 void exec_JAL(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_J(inst);
     cpu->regs[rd(inst)] = cpu->pc;
-    /*printf("JAL-> rd:%ld, pc:%lx\n", rd(inst), cpu->pc);*/
+    /*print_op("JAL-> rd:%ld, pc:%lx\n", rd(inst), cpu->pc);*/
     cpu->pc = cpu->pc + (int64_t) imm - 4;
+    print_op("jal\n");
 }
 
 void exec_JALR(CPU* cpu, uint32_t inst) {
@@ -97,195 +117,288 @@ void exec_JALR(CPU* cpu, uint32_t inst) {
     uint64_t tmp = cpu->pc;
     cpu->pc = (cpu->regs[rs1(inst)] + (int64_t) imm) & 0xfffffffe;
     cpu->regs[rd(inst)] = tmp;
-    /*printf("NEXT -> %#lx, imm:%#lx\n", cpu->pc, imm);*/
+    /*print_op("NEXT -> %#lx, imm:%#lx\n", cpu->pc, imm);*/
+    print_op("jalr\n");
 }
 
 void exec_BEQ(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_B(inst);
     if ((int64_t) cpu->regs[rs1(inst)] == (int64_t) cpu->regs[rs2(inst)])
         cpu->pc = cpu->pc + (int64_t) imm - 4;
+    print_op("beq\n");
 }
 void exec_BNE(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_B(inst);
     if ((int64_t) cpu->regs[rs1(inst)] != (int64_t) cpu->regs[rs2(inst)])
         cpu->pc = (cpu->pc + (int64_t) imm - 4);
+    print_op("bne\n");
 }
 void exec_BLT(CPU* cpu, uint32_t inst) {
+    /*print_op("Operation: BLT\n");*/
     uint64_t imm = imm_B(inst);
     if ((int64_t) cpu->regs[rs1(inst)] < (int64_t) cpu->regs[rs2(inst)])
         cpu->pc = cpu->pc + (int64_t) imm - 4;
+    print_op("blt\n");
 }
 void exec_BGE(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_B(inst);
     if ((int64_t) cpu->regs[rs1(inst)] >= (int64_t) cpu->regs[rs2(inst)])
         cpu->pc = cpu->pc + (int64_t) imm - 4;
+    print_op("bge\n");
 }
 void exec_BLTU(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_B(inst);
     if (cpu->regs[rs1(inst)] < cpu->regs[rs2(inst)])
         cpu->pc = cpu->pc + (int64_t) imm - 4;
+    print_op("bltu\n");
 }
 void exec_BGEU(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_B(inst);
     if (cpu->regs[rs1(inst)] >= cpu->regs[rs2(inst)])
         cpu->pc = (int64_t) cpu->pc + (int64_t) imm - 4;
+    print_op("jal\n");
 }
 void exec_LB(CPU* cpu, uint32_t inst) {
     // load 1 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = (int64_t)(int8_t) cpu_load(cpu, addr, 8);
+    print_op("lb\n");
 }
 void exec_LH(CPU* cpu, uint32_t inst) {
     // load 2 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = (int64_t)(int16_t) cpu_load(cpu, addr, 16);
+    print_op("lh\n");
 }
 void exec_LW(CPU* cpu, uint32_t inst) {
     // load 4 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = (int64_t)(int32_t) cpu_load(cpu, addr, 32);
+    print_op("lw\n");
 }
 void exec_LD(CPU* cpu, uint32_t inst) {
     // load 8 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = (int64_t) cpu_load(cpu, addr, 64);
+    print_op("ld\n");
 }
 void exec_LBU(CPU* cpu, uint32_t inst) {
     // load unsigned 1 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = cpu_load(cpu, addr, 8);
+    print_op("lbu\n");
 }
 void exec_LHU(CPU* cpu, uint32_t inst) {
     // load unsigned 2 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = cpu_load(cpu, addr, 16);
+    print_op("lhu\n");
 }
 void exec_LWU(CPU* cpu, uint32_t inst) {
     // load unsigned 2 byte to rd from address in rs1
     uint64_t imm = imm_I(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu->regs[rd(inst)] = cpu_load(cpu, addr, 32);
+    print_op("lwu\n");
 }
 void exec_SB(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_S(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu_store(cpu, addr, 8, cpu->regs[rs2(inst)]);
+    print_op("sb\n");
 }
 void exec_SH(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_S(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu_store(cpu, addr, 16, cpu->regs[rs2(inst)]);
+    print_op("sh\n");
 }
 void exec_SW(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_S(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu_store(cpu, addr, 32, cpu->regs[rs2(inst)]);
+    print_op("sw\n");
 }
 void exec_SD(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_S(inst);
     uint64_t addr = cpu->regs[rs1(inst)] + (int64_t) imm;
     cpu_store(cpu, addr, 64, cpu->regs[rs2(inst)]);
+    print_op("sd\n");
 }
 
 void exec_ADDI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] + (int64_t) imm;
+    print_op("addi\n");
 }
 
 void exec_SLLI(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] << shamt(inst);
+    print_op("slli\n");
 }
 
 void exec_SLTI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = (cpu->regs[rs1(inst)] < (int64_t) imm)?1:0;
+    print_op("slti\n");
 }
 
 void exec_SLTIU(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = (cpu->regs[rs1(inst)] < imm)?1:0;
+    print_op("sltiu\n");
 }
 
 void exec_XORI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] ^ imm;
+    print_op("xori\n");
 }
 
 void exec_SRLI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] >> imm;
+    print_op("srli\n");
 }
 
 void exec_SRAI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = (int32_t)cpu->regs[rs1(inst)] >> imm;
+    print_op("srai\n");
 }
 
 void exec_ORI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] | imm;
+    print_op("ori\n");
 }
 
 void exec_ANDI(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] & imm;
+    print_op("andi\n");
 }
 
 void exec_ADD(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] =
         (uint64_t) ((int64_t)cpu->regs[rs1(inst)] + (int64_t)cpu->regs[rs2(inst)]);
+    print_op("add\n");
 }
+
+void exec_FENCE(CPU* cpu, uint32_t inst) {
+    print_op("fence\n");
+}
+
+void exec_ECALL(CPU* cpu, uint32_t inst) {}
+void exec_EBREAK(CPU* cpu, uint32_t inst) {}
+
+void exec_ECALLBREAK(CPU* cpu, uint32_t inst) {
+    if (imm_I(inst) == 0x0)
+        exec_ECALL(cpu, inst);
+    if (imm_I(inst) == 0x1)
+        exec_EBREAK(cpu, inst);
+    print_op("ecallbreak\n");
+}
+
 
 void exec_ADDIW(CPU* cpu, uint32_t inst) {
     uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] + (int64_t) imm;
+    print_op("addiw\n");
 }
 
 // TODO
 void exec_SLLIW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] <<  shamt(inst));
+    print_op("slliw\n");
 }
 void exec_SRLIW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] >>  shamt(inst));
+    print_op("srliw\n");
 }
 void exec_SRAIW(CPU* cpu, uint32_t inst) {
+    uint64_t imm = imm_I(inst);
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] >> (uint64_t)(int64_t)(int32_t) imm);
+    print_op("sraiw\n");
 }
 void exec_ADDW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] 
             + (int64_t) cpu->regs[rs2(inst)]);
+    print_op("addw\n");
 }
 void exec_MULW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] 
             * (int64_t) cpu->regs[rs2(inst)]);
+    print_op("mulw\n");
 }
 void exec_SUBW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] 
             - (int64_t) cpu->regs[rs2(inst)]);
+    print_op("subw\n");
 }
 void exec_DIVW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] 
             / (int64_t) cpu->regs[rs2(inst)]);
+    print_op("divw\n");
 }
 void exec_SLLW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] <<  cpu->regs[rs2(inst)]);
+    print_op("sllw\n");
 }
 void exec_SRLW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] >>  cpu->regs[rs2(inst)]);
+    print_op("srlw\n");
 }
 void exec_DIVUW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] / (int64_t) cpu->regs[rs2(inst)];
+    print_op("divuw\n");
 }
 void exec_SRAW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] >>  (uint64_t)(int64_t)(int32_t) cpu->regs[rs2(inst)]);
+    print_op("sraw\n");
 }
 void exec_REMW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = (int64_t)(int32_t) (cpu->regs[rs1(inst)] 
             % (int64_t) cpu->regs[rs2(inst)]);
+    print_op("remw\n");
 }
 void exec_REMUW(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] % (int64_t) cpu->regs[rs2(inst)];
+    print_op("remuw\n");
+}
+
+// CSR instructions
+void exec_CSRRW(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = csr_read(cpu, csr(inst));
+    csr_write(cpu, csr(inst), cpu->regs[rs1(inst)]);
+    print_op("csrrw\n");
+}
+void exec_CSRRS(CPU* cpu, uint32_t inst) {
+    csr_write(cpu, csr(inst), cpu->csr[csr(inst)] | cpu->regs[rs1(inst)]);
+    print_op("csrrs\n");
+}
+void exec_CSRRC(CPU* cpu, uint32_t inst) {
+    csr_write(cpu, csr(inst), cpu->csr[csr(inst)] & !(cpu->regs[rs1(inst)]) );
+    print_op("csrrc\n");
+}
+void exec_CSRRWI(CPU* cpu, uint32_t inst) {
+    csr_write(cpu, csr(inst), rs1(inst));
+    print_op("csrrwi\n");
+}
+void exec_CSRRSI(CPU* cpu, uint32_t inst) {
+    csr_write(cpu, csr(inst), cpu->csr[csr(inst)] | rs1(inst));
+    print_op("csrrsi\n");
+}
+void exec_CSRRCI(CPU* cpu, uint32_t inst) {
+    csr_write(cpu, csr(inst), cpu->csr[csr(inst)] & !rs1(inst));
+    print_op("csrrci\n");
 }
 
 
@@ -295,10 +408,11 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
     int funct3 = (inst >> 12) & 0x7;    // funct3 in bits 14..12
     int funct7 = (inst >> 25) & 0x7f;   // funct7 in bits 31..25
 
-    cpu->regs[0] = 0;                    // x0 reset to 0 at each cycle
+    cpu->regs[0] = 0;                   // x0 hardwired to 0 at each cycle
 
-    printf("%s\nPC: %#.8lx Inst: %#.8x <OpCode: %#.2x, funct3:%#x, funct7:%#x>%s\n",
-            ANSI_YELLOW, cpu->pc-4, inst, opcode, funct3, funct7, ANSI_RESET); // DEBUG
+    /*printf("%s\n%#.8lx -> Inst: %#.8x <OpCode: %#.2x, funct3:%#x, funct7:%#x> %s",*/
+            /*ANSI_YELLOW, cpu->pc-4, inst, opcode, funct3, funct7, ANSI_RESET); // DEBUG*/
+    printf("%s\n%#.8lx -> %s", ANSI_YELLOW, cpu->pc-4, ANSI_RESET); // DEBUG
 
     switch (opcode) {
         case LUI:   exec_LUI(cpu, inst); break;
@@ -383,6 +497,8 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                     return 0;
             } break;
 
+        case FENCE: exec_FENCE(cpu, inst); break;
+
         case I_TYPE_64:
             switch (funct3) {
                 case ADDIW: exec_ADDIW(cpu, inst); break;
@@ -412,7 +528,27 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                     } break;
                 case REMW:  exec_REMW(cpu, inst); break;
                 case REMUW: exec_REMUW(cpu, inst); break;
+                default: ;
             } break;
+
+        case CSR:
+            switch (funct3) {
+                case ECALLBREAK:    exec_ECALLBREAK(cpu, inst); break;
+                case CSRRW  :  exec_CSRRW(cpu, inst); break;  
+                case CSRRS  :  exec_CSRRS(cpu, inst); break;  
+                case CSRRC  :  exec_CSRRC(cpu, inst); break;  
+                case CSRRWI :  exec_CSRRWI(cpu, inst); break; 
+                case CSRRSI :  exec_CSRRSI(cpu, inst); break; 
+                case CSRRCI :  exec_CSRRCI(cpu, inst); break; 
+                default:
+                    fprintf(stderr, 
+                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct3:0x%x\n"
+                            , opcode, funct3, funct7);
+                    return 0;
+            } break;
+
+        case 0x00:
+            return 0;
 
         default:
             fprintf(stderr, 
@@ -426,20 +562,28 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
 
 void dump_registers(CPU *cpu) {
     char* abi[] = { // Application Binary Interface registers
-        "zero", " ra ", " sp ", " gp ",
-        " tp ", " t0 ", " t1 ", " t2 ",
-        " s0 ", " s1 ", " a0 ", " a1 ",
-        " a2 ", " a3 ", " a4 ", " a5 ",
-        " a6 ", " a7 ", " s2 ", " s3 ",
-        " s4 ", " s5 ", " s6 ", " s7 ",
-        " s8 ", " s9 ", " s10", " s11",
-        " t3 ", " t4 ", " t5 ", " t6 ",
+        "zero", "ra",  "sp",  "gp",
+          "tp", "t0",  "t1",  "t2",
+          "s0", "s1",  "a0",  "a1",
+          "a2", "a3",  "a4",  "a5",
+          "a6", "a7",  "s2",  "s3",
+          "s4", "s5",  "s6",  "s7",
+          "s8", "s9", "s10", "s11",
+          "t3", "t4",  "t5",  "t6",
     };
 
+    /*for (int i=0; i<8; i++) {*/
+        /*printf("%4s| x%02d: %#-8.2lx\t", abi[i],    i,    cpu->regs[i]);*/
+        /*printf("%4s| x%02d: %#-8.2lx\t", abi[i+8],  i+8,  cpu->regs[i+8]);*/
+        /*printf("%4s| x%02d: %#-8.2lx\t", abi[i+16], i+16, cpu->regs[i+16]);*/
+        /*printf("%4s| x%02d: %#-8.2lx\n", abi[i+24], i+24, cpu->regs[i+24]);*/
+    /*}*/
+
     for (int i=0; i<8; i++) {
-        printf("(%s)x%02d: %#-8.2lx\t", abi[i],    i,    cpu->regs[i]);
-        printf("(%s)x%02d: %#-8.2lx\t", abi[i+8],  i+8,  cpu->regs[i+8]);
-        printf("(%s)x%02d: %#-8.2lx\t", abi[i+16], i+16, cpu->regs[i+16]);
-        printf("(%s)x%02d: %#-8.2lx\n", abi[i+24], i+24, cpu->regs[i+24]);
+        printf("   %4s: %#-13.2lx  ", abi[i],    cpu->regs[i]);
+        printf("   %2s: %#-13.2lx  ", abi[i+8],  cpu->regs[i+8]);
+        printf("   %2s: %#-13.2lx  ", abi[i+16], cpu->regs[i+16]);
+        printf("   %3s: %#-13.2lx\n", abi[i+24], cpu->regs[i+24]);
     }
 }
+
