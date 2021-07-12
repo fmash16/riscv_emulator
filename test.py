@@ -30,6 +30,6 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print ("Usage: ./test.py <riscv-tests-dir> <destination>")
         exit(1)
-    rv_tests_dir = sys.argv[1]
+    rv_tests_dir = sys.argv[1] + "/isa"
     dest_dir = sys.argv[2]
     make_tests(rv_tests_dir, dest_dir)

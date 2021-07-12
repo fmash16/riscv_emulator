@@ -286,10 +286,56 @@ void exec_ANDI(CPU* cpu, uint32_t inst) {
 }
 
 void exec_ADD(CPU* cpu, uint32_t inst) {
-    uint64_t imm = imm_I(inst);
     cpu->regs[rd(inst)] =
         (uint64_t) ((int64_t)cpu->regs[rs1(inst)] + (int64_t)cpu->regs[rs2(inst)]);
     print_op("add\n");
+}
+
+void exec_SUB(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] =
+        (uint64_t) ((int64_t)cpu->regs[rs1(inst)] - (int64_t)cpu->regs[rs2(inst)]);
+    print_op("sub\n");
+}
+
+void exec_SLL(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] << (int64_t)cpu->regs[rs2(inst)];
+    print_op("sll\n");
+}
+
+void exec_SLT(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (cpu->regs[rs1(inst)] < (int64_t) cpu->regs[rs2(inst)])?1:0;
+    print_op("slt\n");
+}
+
+void exec_SLTU(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (cpu->regs[rs1(inst)] < cpu->regs[rs2(inst)])?1:0;
+    print_op("slti\n");
+}
+
+void exec_XOR(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] ^ cpu->regs[rs2(inst)];
+    print_op("xor\n");
+}
+
+void exec_SRL(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] >> cpu->regs[rs2(inst)];
+    print_op("srl\n");
+}
+
+void exec_SRA(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = (int32_t)cpu->regs[rs1(inst)] >> 
+        (int64_t) cpu->regs[rs2(inst)];
+    print_op("sra\n");
+}
+
+void exec_OR(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] | cpu->regs[rs2(inst)];
+    print_op("or\n");
+}
+
+void exec_AND(CPU* cpu, uint32_t inst) {
+    cpu->regs[rd(inst)] = cpu->regs[rs1(inst)] & cpu->regs[rs2(inst)];
+    print_op("and\n");
 }
 
 void exec_FENCE(CPU* cpu, uint32_t inst) {
@@ -462,8 +508,8 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                 case XORI:  exec_XORI(cpu, inst); break;
                 case SRI:   
                     switch (funct7) {
-                        case SRLI:  exec_XORI(cpu, inst); break;
-                        case SRAI:  exec_XORI(cpu, inst); break;
+                        case SRLI:  exec_SRLI(cpu, inst); break;
+                        case SRAI:  exec_SRAI(cpu, inst); break;
                         default: ;
                     } break;
                 case ORI:   exec_ORI(cpu, inst); break;
@@ -477,19 +523,24 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
 
         case R_TYPE:  
             switch (funct3) {
-                case ADD:  exec_ADD(cpu, inst); break;
-                /*case SLLI:  exec_SLLI(cpu, inst); break;*/
-                /*case SLTI:  exec_SLTI(cpu, inst); break;*/
-                /*case SLTIU: exec_SLTIU(cpu, inst); break;*/
-                /*case XORI:  exec_XORI(cpu, inst); break;*/
-                /*case SRI:   */
-                    /*switch (funct7) {*/
-                        /*case SRLI:  exec_XORI(cpu, inst); break;*/
-                        /*case SRAI:  exec_XORI(cpu, inst); break;*/
-                        /*default: ;*/
-                    /*}*/
-                /*case ORI:   exec_ORI(cpu, inst); break;*/
-                /*case ANDI:  exec_ANDI(cpu, inst); break;*/
+                case ADDSUB:
+                    switch (funct7) {
+                        case ADD: exec_ADD(cpu, inst);
+                        case SUB: exec_ADD(cpu, inst);
+                        default: ;
+                    } break;
+                case SLL:  exec_SLL(cpu, inst); break;
+                case SLT:  exec_SLT(cpu, inst); break;
+                case SLTU: exec_SLTU(cpu, inst); break;
+                case XOR:  exec_XOR(cpu, inst); break;
+                case SR:   
+                    switch (funct7) {
+                        case SRL:  exec_SRL(cpu, inst); break;
+                        case SRA:  exec_SRA(cpu, inst); break;
+                        default: ;
+                    }
+                case OR:   exec_OR(cpu, inst); break;
+                case AND:  exec_AND(cpu, inst); break;
                 default:
                     fprintf(stderr, 
                             "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct3:0x%x\n"
