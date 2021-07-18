@@ -44,7 +44,7 @@ void read_file(CPU* cpu, char *filename)
 	//Read file contents into buffer
 	fread(buffer, fileLen, 1, file);
 	fclose(file);
-    /*printf("%ld %ld\n", fileLen, sizeof(buffer));*/
+
     // Print file contents in hex
     /*for (int i=0; i<fileLen; i+=2) {*/
         /*if (i%16==0) printf("\n%.8x: ", i);*/
@@ -87,4 +87,3 @@ int main(int argc, char* argv[]) {
     /*dump_registers(&cpu);*/
     return 0;
 }
-

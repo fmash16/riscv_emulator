@@ -88,4 +88,30 @@
     #define CSRRSI  0x06
     #define CSRRCI  0x07
 
+#define AMO_W 0x2f
+    #define LR_W        0x02
+    #define SC_W        0x03
+    #define AMOSWAP_W   0x01
+    #define AMOADD_W    0x00
+    #define AMOXOR_W    0x04
+    #define AMOAND_W    0x0c
+    #define AMOOR_W     0x08
+    #define AMOMIN_W    0x10
+    #define AMOMAX_W    0x14
+    #define AMOMINU_W   0x18
+    #define AMOMAXU_W   0x1c
+
+//#define AMO_D 0x2f
+    //#define LR_D        0x02
+    //#define SC_D        0x03
+    //#define AMOSWAP_D   0x01
+    //#define AMOADD_D    0x00
+    //#define AMOXOR_D    0x04
+    //#define AMOAND_D    0x0c
+    //#define AMOOR_D     0x08
+    //#define AMOMIN_D    0x10
+    //#define AMOMAX_D    0x14
+    //#define AMOMINU_D   0x18
+    //#define AMOMAXU_D   0x1c
+
 #endif

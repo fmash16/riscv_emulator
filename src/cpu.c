@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "../includes/cpu.h"
 #include "../includes/opcodes.h"
 #include "../includes/csr.h"
@@ -7,6 +8,8 @@
 #define ANSI_YELLOW  "\x1b[33m"
 #define ANSI_BLUE    "\x1b[31m"
 #define ANSI_RESET   "\x1b[0m"
+
+#define ADDR_MISALIGNED(addr) (addr & 0x3)
 
 
 // print operation for DEBUG
@@ -110,6 +113,10 @@ void exec_JAL(CPU* cpu, uint32_t inst) {
     /*print_op("JAL-> rd:%ld, pc:%lx\n", rd(inst), cpu->pc);*/
     cpu->pc = cpu->pc + (int64_t) imm - 4;
     print_op("jal\n");
+    if (ADDR_MISALIGNED(cpu->pc)) {
+        fprintf(stderr, "JAL pc address misalligned");
+        exit(0);
+    }
 }
 
 void exec_JALR(CPU* cpu, uint32_t inst) {
@@ -119,6 +126,10 @@ void exec_JALR(CPU* cpu, uint32_t inst) {
     cpu->regs[rd(inst)] = tmp;
     /*print_op("NEXT -> %#lx, imm:%#lx\n", cpu->pc, imm);*/
     print_op("jalr\n");
+    if (ADDR_MISALIGNED(cpu->pc)) {
+        fprintf(stderr, "JAL pc address misalligned");
+        exit(0);
+    }
 }
 
 void exec_BEQ(CPU* cpu, uint32_t inst) {
@@ -447,7 +458,79 @@ void exec_CSRRCI(CPU* cpu, uint32_t inst) {
     print_op("csrrci\n");
 }
 
+// AMO_W
+void exec_LR_W(CPU* cpu, uint32_t inst) {}  
+void exec_SC_W(CPU* cpu, uint32_t inst) {}  
+void exec_AMOSWAP_W(CPU* cpu, uint32_t inst) {}  
+void exec_AMOADD_W(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp + (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoadd.w\n");
+} 
+void exec_AMOXOR_W(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp ^ (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoxor.w\n");
+} 
+void exec_AMOAND_W(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp & (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoand.w\n");
+} 
+void exec_AMOOR_W(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp | (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoor.w\n");
+} 
+void exec_AMOMIN_W(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMAX_W(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMINU_W(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMAXU_W(CPU* cpu, uint32_t inst) {} 
 
+// AMO_D TODO
+void exec_LR_D(CPU* cpu, uint32_t inst) {}  
+void exec_SC_D(CPU* cpu, uint32_t inst) {}  
+void exec_AMOSWAP_D(CPU* cpu, uint32_t inst) {}  
+void exec_AMOADD_D(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp + (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoadd.w\n");
+} 
+void exec_AMOXOR_D(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp ^ (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoxor.w\n");
+} 
+void exec_AMOAND_D(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp & (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoand.w\n");
+} 
+void exec_AMOOR_D(CPU* cpu, uint32_t inst) {
+    uint32_t tmp = cpu_load(cpu, cpu->regs[rs1(inst)], 32);
+    uint32_t res = tmp | (uint32_t)cpu->regs[rs2(inst)];
+    cpu->regs[rd(inst)] = tmp;
+    cpu_store(cpu, cpu->regs[rs1(inst)], 32, res);
+    print_op("amoor.w\n");
+} 
+void exec_AMOMIN_D(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMAX_D(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMINU_D(CPU* cpu, uint32_t inst) {} 
+void exec_AMOMAXU_D(CPU* cpu, uint32_t inst) {} 
 
 int cpu_execute(CPU *cpu, uint32_t inst) {
     int opcode = inst & 0x7f;           // opcode in bits 6..0
@@ -516,7 +599,7 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                 case ANDI:  exec_ANDI(cpu, inst); break;
                 default:
                     fprintf(stderr, 
-                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct3:0x%x\n"
+                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct7:0x%x\n"
                             , opcode, funct3, funct7);
                     return 0;
             } break;
@@ -543,7 +626,7 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                 case AND:  exec_AND(cpu, inst); break;
                 default:
                     fprintf(stderr, 
-                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct3:0x%x\n"
+                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct7:0x%x\n"
                             , opcode, funct3, funct7);
                     return 0;
             } break;
@@ -593,7 +676,27 @@ int cpu_execute(CPU *cpu, uint32_t inst) {
                 case CSRRCI :  exec_CSRRCI(cpu, inst); break; 
                 default:
                     fprintf(stderr, 
-                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct3:0x%x\n"
+                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct7:0x%x\n"
+                            , opcode, funct3, funct7);
+                    return 0;
+            } break;
+
+        case AMO_W:
+            switch (funct7 >> 2) { // since, funct[1:0] = aq, rl
+                case LR_W      :  exec_LR_W(cpu, inst); break;  
+                case SC_W      :  exec_SC_W(cpu, inst); break;  
+                case AMOSWAP_W :  exec_AMOSWAP_W(cpu, inst); break;  
+                case AMOADD_W  :  exec_AMOADD_W(cpu, inst); break; 
+                case AMOXOR_W  :  exec_AMOXOR_W(cpu, inst); break; 
+                case AMOAND_W  :  exec_AMOAND_W(cpu, inst); break; 
+                case AMOOR_W   :  exec_AMOOR_W(cpu, inst); break; 
+                case AMOMIN_W  :  exec_AMOMIN_W(cpu, inst); break; 
+                case AMOMAX_W  :  exec_AMOMAX_W(cpu, inst); break; 
+                case AMOMINU_W :  exec_AMOMINU_W(cpu, inst); break; 
+                case AMOMAXU_W :  exec_AMOMAXU_W(cpu, inst); break; 
+                default:
+                    fprintf(stderr, 
+                            "[-] ERROR-> opcode:0x%x, funct3:0x%x, funct7:0x%x\n"
                             , opcode, funct3, funct7);
                     return 0;
             } break;
